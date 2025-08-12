@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const Person = require('./../models/person');
+const {jwtAuthMiddleware, generateToken} = require('./../jwt');
 
 
 //get method to get the person
-router.get('/', async(req,res) =>{
+router.get('/', jwtAuthMiddleware, async(req,res) =>{
     try{
       const data = await Person.find();
       console.log('data fetched');
@@ -17,7 +18,7 @@ router.get('/', async(req,res) =>{
 
 
 //post route to add a person
-router.post('/', async (req,res) =>{
+router.post('/signup', async (req,res) =>{
     try{
       const data = req.body //assuming the request body contains the person data
   
@@ -27,7 +28,16 @@ router.post('/', async (req,res) =>{
     //save the new person to the database
     const response = await newPerson.save();
     console.log('data saved');
-    res.status(200).json(response);
+
+    const payload = {
+      id: response.id,
+      username: response.username
+    }
+    console.log(JSON.stringify(payload));
+    const token = generateToken(payload);
+    console.log("Token is : ", token);
+
+    res.status(200).json({response: response, token: token});
     }
     catch(err){
       console.log('Error details:',err);
@@ -36,6 +46,36 @@ router.post('/', async (req,res) =>{
 })
 
 
+
+// login route
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // find the user by username
+    const user = await Person.findOne({ username: username });
+
+    // if user not found or password mismatch
+    if (!user || !(await user.comparePassword(password))) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // create token payload
+    const payload = {
+      id: user.id,
+      username: user.username
+    };
+
+    // generate JWT
+    const token = generateToken(payload);
+
+    // return token
+    res.json({ token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 router.get('//:workType', async(req,res)=>{
     try{
